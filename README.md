@@ -158,3 +158,7 @@ O protocolo não foi descoberto do zero: está publicado em código aberto, incl
   [daikin-br/ha-custom-integration](https://github.com/daikin-br/ha-custom-integration) — cliente oficial em Python.
 - [crossworth/daikin](https://github.com/crossworth/daikin) — engenharia reversa original, em Go.
 - [billbatista/ha-daikin-smart-ac-br](https://github.com/billbatista/ha-daikin-smart-ac-br) — ponte MQTT em Go.
+
+## Licença
+
+[MIT](LICENSE).
