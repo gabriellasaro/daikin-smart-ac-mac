@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Daikin</string>
+    <key>CFBundleDisplayName</key>
+    <string>Daikin</string>
+    <key>CFBundleIdentifier</key>
+    <string>local.daikin.app</string>
+    <key>CFBundleExecutable</key>
+    <string>Daikin</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>pt-BR</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Para encontrar e controlar o seu ar-condicionado na rede local.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_iota._tcp</string>
+    </array>
+</dict>
+</plist>
