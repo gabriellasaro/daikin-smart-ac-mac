@@ -18,8 +18,9 @@ import DaikinKit
 /// - `DAIKIN_SNAPSHOT_CLOSE_WINDOW=1` closes the main window first.
 /// - `DAIKIN_SNAPSHOT_REOPEN=1` then sends the event a click on the Dock icon sends.
 /// - `DAIKIN_SNAPSHOT_OPEN_PANEL=1` opens the menu bar panel without capturing it.
-/// - `DAIKIN_SNAPSHOT_ITEM_CLICKS=2` clicks the menu bar item that many times instead of opening
-///   the panel directly, to check that the item toggles it.
+/// - `DAIKIN_SNAPSHOT_ITEM="click,reclick,wait,click"` works the menu bar item instead of opening
+///   the panel directly. `click` runs the item's action; `reclick` does what a real click on the
+///   item does while the panel is up: the panel loses the keyboard, then the action runs.
 /// - `DAIKIN_SNAPSHOT_AUTOCLOSE=1` lets the panel close itself when it loses the keyboard, as it
 ///   does in normal use; `DAIKIN_SNAPSHOT_RESIGN_KEY=1` then announces that loss on its behalf.
 /// - `DAIKIN_SNAPSHOT_MENU="Aparelho/Desligar,Aparelho/Modo/Ventilar"` clicks main menu items.
@@ -87,9 +88,19 @@ enum Snapshot {
             await pause(delay)
             // A background launch may lose the keyboard at any moment, which would close the panel.
             menuBar.staysOpen = environment["DAIKIN_SNAPSHOT_AUTOCLOSE"] == nil
-            if let presses = environment["DAIKIN_SNAPSHOT_ITEM_CLICKS"].flatMap(Int.init) {
-                for _ in 0..<presses {
-                    menuBar.pressItem()
+            if let steps = environment["DAIKIN_SNAPSHOT_ITEM"] {
+                for step in steps.split(separator: ",") {
+                    switch step {
+                    case "click":
+                        menuBar.pressItem()
+                    case "reclick":
+                        if let panel = panelWindow {
+                            NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: panel)
+                        }
+                        menuBar.pressItem()
+                    default:
+                        break
+                    }
                     await pause(0.5)
                 }
             } else if target == "panel" || environment["DAIKIN_SNAPSHOT_OPEN_PANEL"] != nil {
@@ -114,6 +125,7 @@ enum Snapshot {
                 await pause(hold)
             }
             if environment["DAIKIN_SNAPSHOT_DEBUG"] != nil {
+                note("in the Dock: \(NSApp.activationPolicy() == .regular)")
                 note(windowListing)
                 if let panel = panelWindow { describe(panel) }
             }

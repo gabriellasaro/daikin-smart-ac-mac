@@ -83,6 +83,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showMainWindow()
         }
         self.menuBar = menuBar
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: nil)
         #if DEBUG
         Snapshot.captureIfRequested(menuBar: menuBar)
         #endif
@@ -99,12 +101,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// With its window closed the app is only a menu bar item, and leaves the Dock.
+    @objc private func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === mainWindow else { return }
+        NSApp.setActivationPolicy(.accessory)
+    }
+
     /// SwiftUI keeps the window object after it is closed, so it only has to be shown again.
     private var mainWindow: NSWindow? {
-        NSApp.windows.first { $0.styleMask.contains(.titled) && !($0 is NSPanel) }
+        NSApp.windows.first { $0.styleMask.contains(.titled) && !($0 is NSPanel) && !$0.isSheet }
     }
 
     private func showMainWindow() {
+        // Back in the Dock first: an accessory app cannot bring a window forward with its menus.
+        NSApp.setActivationPolicy(.regular)
         mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }

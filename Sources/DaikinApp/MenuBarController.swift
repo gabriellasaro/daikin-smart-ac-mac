@@ -15,6 +15,8 @@ final class MenuBarController: NSObject {
     /// Chosen by eye to sit with the system's own menu bar panels; the system exposes no value to read.
     static let cornerRadius: CGFloat = 20
     private static let gapBelowMenuBar: CGFloat = 6
+    /// Longer than one click takes to do both of its jobs, shorter than a deliberate second click.
+    private static let reopenGuard: TimeInterval = 0.3
     private static let screenMargin: CGFloat = 8
 
     private let store: DeviceStore
@@ -22,6 +24,8 @@ final class MenuBarController: NSObject {
     private let panel = MenuBarPanelWindow(cornerRadius: MenuBarController.cornerRadius)
     private var contentHeight: CGFloat = 0
     private var clickMonitors: [Any] = []
+    /// When the panel last closed because something else took the click or the keyboard.
+    private var dismissedAt: TimeInterval = 0
 
     /// Set by tests, to keep the panel up while the app is in the background.
     var staysOpen = false
@@ -96,10 +100,13 @@ final class MenuBarController: NSObject {
 
     // MARK: - Panel
 
+    /// A click on the item while the panel is up reaches here twice over: it first takes the
+    /// keyboard from the panel, which dismisses it, and then arrives as the item's action. That
+    /// action must not open the panel again, or the click meant to close it only makes it blink.
     @objc private func togglePanel() {
         if panel.isVisible {
             close()
-        } else {
+        } else if ProcessInfo.processInfo.systemUptime - dismissedAt > Self.reopenGuard {
             show()
         }
     }
@@ -147,7 +154,9 @@ final class MenuBarController: NSObject {
     }
 
     private func dismiss() {
-        if !staysOpen { close() }
+        guard !staysOpen, panel.isVisible else { return }
+        dismissedAt = ProcessInfo.processInfo.systemUptime
+        close()
     }
 
     /// Covers clicks on this app's other windows and switching apps from the keyboard.

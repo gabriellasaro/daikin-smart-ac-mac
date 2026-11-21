@@ -33,9 +33,10 @@ Atalhos: ⇧⌘P liga/desliga, ⌘↑ e ⌘↓ mudam a temperatura, ⌘R atualiz
 O app põe um item na barra de menus: o ícone fica preenchido com o ar ligado e mostra a temperatura
 ambiente ao lado. Um clique abre um painel com os mesmos controles da janela.
 
-Fechar a janela não encerra o app; ele continua na barra. Para trazê-la de volta, use **Abrir janela** no
-painel ou clique no ícone do Dock. Para sair de vez, ⌘Q ou **⋯ → Encerrar Daikin**. No mesmo menu **⋯** fica
-**Abrir ao iniciar sessão**, que registra o app nos Itens de Início do macOS.
+Fechar a janela não encerra o app: ele sai do Dock e continua só na barra. Para trazer a janela de volta,
+use **Abrir janela** no painel ou abra o app de novo (Spotlight, Launchpad, Finder); com ela o ícone volta
+ao Dock. Para sair de vez, **⋯ → Encerrar Daikin** no painel, ou ⌘Q com a janela aberta. No mesmo menu **⋯**
+fica **Abrir ao iniciar sessão**, que registra o app nos Itens de Início do macOS.
 
 ## CLI
 
