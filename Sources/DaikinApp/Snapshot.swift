@@ -13,9 +13,15 @@ import DaikinKit
 /// - `DAIKIN_SNAPSHOT_APPEARANCE=light|dark` forces an appearance.
 /// - `DAIKIN_SNAPSHOT_DELAY` is how long to let the app settle before opening the panel,
 ///   pressing controls and taking the picture, in seconds (default 2).
+/// - `DAIKIN_SNAPSHOT_HOLD` keeps everything open that many more seconds before the picture,
+///   long enough for a few polls of the unit.
 /// - `DAIKIN_SNAPSHOT_CLOSE_WINDOW=1` closes the main window first.
 /// - `DAIKIN_SNAPSHOT_REOPEN=1` then sends the event a click on the Dock icon sends.
 /// - `DAIKIN_SNAPSHOT_OPEN_PANEL=1` opens the menu bar panel without capturing it.
+/// - `DAIKIN_SNAPSHOT_ITEM_CLICKS=2` clicks the menu bar item that many times instead of opening
+///   the panel directly, to check that the item toggles it.
+/// - `DAIKIN_SNAPSHOT_AUTOCLOSE=1` lets the panel close itself when it loses the keyboard, as it
+///   does in normal use; `DAIKIN_SNAPSHOT_RESIGN_KEY=1` then announces that loss on its behalf.
 /// - `DAIKIN_SNAPSHOT_MENU="Aparelho/Desligar,Aparelho/Modo/Ventilar"` clicks main menu items.
 /// - `DAIKIN_SNAPSHOT_CLICK="window:336,130;panel:58,577"` clicks at points of the main window or
 ///   of the menu bar panel, measured from the top left of what a snapshot of it shows.
@@ -24,9 +30,12 @@ import DaikinKit
 /// on localhost: point `DAIKIN_CONFIG` at a config for `Scripts/mock-device.py`.
 @MainActor
 enum Snapshot {
-    static func captureIfRequested() {
+    private static weak var menuBar: MenuBarController?
+
+    static func captureIfRequested(menuBar: MenuBarController) {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["DAIKIN_SNAPSHOT"] else { return }
+        self.menuBar = menuBar
 
         func list(_ name: String) -> [String] {
             environment[name]?.split(separator: ",").map(String.init) ?? []
@@ -76,17 +85,34 @@ enum Snapshot {
                 }
             }
             await pause(delay)
-            // The panel closes as soon as anything else takes focus, so it is opened last.
-            if target == "panel" || environment["DAIKIN_SNAPSHOT_OPEN_PANEL"] != nil {
-                await openPanel()
-                await pause(0.5)
+            // A background launch may lose the keyboard at any moment, which would close the panel.
+            menuBar.staysOpen = environment["DAIKIN_SNAPSHOT_AUTOCLOSE"] == nil
+            if let presses = environment["DAIKIN_SNAPSHOT_ITEM_CLICKS"].flatMap(Int.init) {
+                for _ in 0..<presses {
+                    menuBar.pressItem()
+                    await pause(0.5)
+                }
+            } else if target == "panel" || environment["DAIKIN_SNAPSHOT_OPEN_PANEL"] != nil {
+                menuBar.show()
+                await pause(0.7)
             }
             for click in clicks {
                 self.click(at: click)
-                await pause(0.4)
+                await pause(0.8)
             }
             // Long enough for the debounced temperature command and the unit's reply.
             await pause(clicks.isEmpty ? 0.2 : 1.5)
+            if environment["DAIKIN_SNAPSHOT_RESIGN_KEY"] != nil, let panel = panelWindow {
+                // A background launch never holds the keyboard, so the real event cannot happen here.
+                NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: panel)
+                await pause(0.3)
+            }
+            if let hold = environment["DAIKIN_SNAPSHOT_HOLD"].flatMap(Double.init) {
+                if environment["DAIKIN_SNAPSHOT_DEBUG"] != nil, let panel = panelWindow {
+                    note("before hold: window \(Int(panel.frame.width))x\(Int(panel.frame.height))")
+                }
+                await pause(hold)
+            }
             if environment["DAIKIN_SNAPSHOT_DEBUG"] != nil {
                 note(windowListing)
                 if let panel = panelWindow { describe(panel) }
@@ -98,15 +124,15 @@ enum Snapshot {
     // MARK: - Windows
 
     private static var statusWindow: NSWindow? {
-        NSApp.windows.first { $0.className.contains("StatusBar") }
+        menuBar?.statusItemWindow
     }
 
     private static var mainWindow: NSWindow? {
-        NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) && $0 !== statusWindow && !($0 is NSPanel) }
+        NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel) }
     }
 
     private static var panelWindow: NSWindow? {
-        NSApp.windows.first { $0.isVisible && $0.className.contains("MenuBarExtraWindow") }
+        menuBar?.panelWindow
     }
 
     private static var windowListing: String {
@@ -146,32 +172,19 @@ enum Snapshot {
 
     // MARK: - Actions
 
-    /// Clicks the menu bar item. There is one status window per menu bar (one per display),
-    /// and only the one on the active display opens the panel, so each is tried in turn.
-    private static func openPanel() async {
-        func firstButton(in view: NSView) -> NSButton? {
-            if let button = view as? NSButton { return button }
-            return view.subviews.lazy.compactMap(firstButton).first
+    /// A left click at `location`, in the window's own coordinates.
+    private static func send(click location: NSPoint, to window: NSWindow) {
+        func event(_ type: NSEvent.EventType) -> NSEvent? {
+            NSEvent.mouseEvent(
+                with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+                pressure: type == .leftMouseDown ? 1 : 0)
         }
-        let buttons = NSApp.windows
-            .filter { $0.className.contains("StatusBar") }
-            .compactMap { $0.contentView.flatMap(firstButton) }
-        if buttons.isEmpty { note("no menu bar item — \(windowListing)") }
-
-        // The panel closes itself unless the app is frontmost when it opens.
-        NSRunningApplication.current.activate(options: [.activateAllWindows])
-        for _ in 0..<20 where !NSApp.isActive {
-            await pause(0.1)
-        }
-        if !NSApp.isActive { note("could not bring the app to the front") }
-        for (index, button) in buttons.enumerated() {
-            button.performClick(nil)
-            for _ in 0..<10 where panelWindow == nil {
-                await pause(0.1)
-            }
-            if panelWindow != nil { return }
-            note("menu bar item \(index + 1) of \(buttons.count) did not open the panel")
-        }
+        guard let down = event(.leftMouseDown), let up = event(.leftMouseUp) else { return }
+        // Controls such as switches track the mouse in a nested loop: the release has to be
+        // waiting in the queue before the press is delivered, or that loop never ends.
+        NSApp.postEvent(up, atStart: false)
+        NSApp.sendEvent(down)
     }
 
     private static func click(menuPath: [String]) {
@@ -207,18 +220,7 @@ enum Snapshot {
             note("no \(parts[0]) to click — \(windowListing)")
             return
         }
-        let location = NSPoint(x: numbers[0], y: window.frame.height - numbers[1])
-        func event(_ type: NSEvent.EventType) -> NSEvent? {
-            NSEvent.mouseEvent(
-                with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
-                pressure: type == .leftMouseDown ? 1 : 0)
-        }
-        guard let down = event(.leftMouseDown), let up = event(.leftMouseUp) else { return }
-        // Controls such as switches track the mouse in a nested loop: the release has to be
-        // waiting in the queue before the press is delivered, or that loop never ends.
-        NSApp.postEvent(up, atStart: false)
-        window.sendEvent(down)
+        send(click: NSPoint(x: numbers[0], y: window.frame.height - numbers[1]), to: window)
     }
 
     // MARK: - Capture

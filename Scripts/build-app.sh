@@ -23,6 +23,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BINARY" "$APP/Contents/MacOS/Daikin"
 cp Packaging/Info.plist "$APP/Contents/Info.plist"
+if [ "$CONFIGURATION" = debug ]; then
+    # Its own identity, so a debug build never shares the menu bar slot, the permissions
+    # or the login item of the installed app.
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier local.daikin.app.debug" \
+        -c "Set :CFBundleName Daikin Debug" -c "Set :CFBundleDisplayName Daikin Debug" "$APP/Contents/Info.plist"
+fi
 cp Packaging/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 codesign --force --sign "${CODESIGN_IDENTITY:--}" "$APP"

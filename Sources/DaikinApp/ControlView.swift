@@ -344,8 +344,7 @@ private struct OptionList: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .toggleStyle(.switch)
-                    .tint(tint)
+                    .toggleStyle(SwitchStyle(tint: tint))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
 
@@ -355,6 +354,40 @@ private struct OptionList: View {
                 }
             }
             .background(.controlFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+}
+
+/// A switch drawn in SwiftUI, sized and coloured like the system's.
+///
+/// The system switch is an AppKit control: it only toggles in the window that has the keyboard,
+/// and it reports a different height while being measured than once laid out. Neither suits the
+/// menu bar panel, so the same switch is used there and in the window.
+private struct SwitchStyle: ToggleStyle {
+    let tint: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+            Button {
+                configuration.isOn.toggle()
+            } label: {
+                Capsule()
+                    .fill(configuration.isOn ? AnyShapeStyle(tint) : AnyShapeStyle(.tertiary.opacity(0.6)))
+                    .frame(width: 38, height: 22)
+                    .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(.white)
+                            .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
+                            .padding(2)
+                    }
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .animation(.snappy(duration: 0.15), value: configuration.isOn)
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
         }
     }
 }

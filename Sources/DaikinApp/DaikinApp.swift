@@ -5,30 +5,19 @@ import SwiftUI
 @main
 struct DaikinApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var store = DeviceStore()
-    @State private var loginItem = LoginItem()
-
-    static let mainWindowID = "main"
 
     var body: some Scene {
-        Window("Daikin", id: Self.mainWindowID) {
+        Window("Daikin", id: "main") {
             RootView()
-                .environment(store)
+                .environment(appDelegate.store)
         }
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Aparelho") {
-                DeviceMenu(store: store)
+                DeviceMenu(store: appDelegate.store)
             }
         }
-
-        MenuBarExtra {
-            MenuBarPanel(store: store, loginItem: loginItem)
-        } label: {
-            MenuBarLabel(store: store)
-        }
-        .menuBarExtraStyle(.window)
     }
 }
 
@@ -77,15 +66,25 @@ private struct DeviceMenu: View {
     }
 }
 
+/// Owns what outlives the window: the devices, and the menu bar item with its panel.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let store = DeviceStore()
+    private let loginItem = LoginItem()
+    private var menuBar: MenuBarController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Run straight from `swift run`, there is no bundle to make this a regular app.
         if Bundle.main.bundleIdentifier == nil {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate()
         }
+        let menuBar = MenuBarController(store: store, loginItem: loginItem) { [weak self] in
+            self?.showMainWindow()
+        }
+        self.menuBar = menuBar
         #if DEBUG
-        Snapshot.captureIfRequested()
+        Snapshot.captureIfRequested(menuBar: menuBar)
         #endif
     }
 
@@ -96,10 +95,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// A click on the Dock icon brings the closed window back; SwiftUI does not do it for a `Window` scene.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        let mainWindow = sender.windows.first { $0.styleMask.contains(.titled) && !($0 is NSPanel) }
-        if let mainWindow, !mainWindow.isVisible {
-            mainWindow.makeKeyAndOrderFront(nil)
-        }
+        if mainWindow?.isVisible != true { showMainWindow() }
         return true
+    }
+
+    /// SwiftUI keeps the window object after it is closed, so it only has to be shown again.
+    private var mainWindow: NSWindow? {
+        NSApp.windows.first { $0.styleMask.contains(.titled) && !($0 is NSPanel) }
+    }
+
+    private func showMainWindow() {
+        mainWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate()
     }
 }

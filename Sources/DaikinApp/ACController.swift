@@ -106,8 +106,11 @@ final class ACController {
     }
 
     // MARK: - Edits
+    //
+    // A control reporting the value the unit already has is not an edit, and sends nothing.
 
     func setPower(_ on: Bool) {
+        guard port?.isOn != on else { return }
         send(ACCommand(power: on)) { $0.power = on ? 1 : 0 }
     }
 
@@ -124,6 +127,7 @@ final class ACController {
 
     /// Vertical swing and comfort airflow exclude each other.
     func setSwing(_ on: Bool) {
+        guard port?.vSwing != (on ? 1 : 0) else { return }
         let clearsComfort = on && port?.coanda == 1
         send(ACCommand(verticalSwing: on, comfort: clearsComfort ? false : nil)) {
             $0.vSwing = on ? 1 : 0
@@ -132,6 +136,7 @@ final class ACController {
     }
 
     func setComfort(_ on: Bool) {
+        guard port?.coanda != (on ? 1 : 0) else { return }
         let clearsSwing = on && port?.vSwing == 1
         send(ACCommand(verticalSwing: clearsSwing ? false : nil, comfort: on)) {
             $0.coanda = on ? 1 : 0
@@ -141,6 +146,7 @@ final class ACController {
 
     /// Econo and powerful exclude each other; the firmware clears the other one.
     func setEcono(_ on: Bool) {
+        guard port?.econo != (on ? 1 : 0) else { return }
         send(ACCommand(econo: on)) {
             $0.econo = on ? 1 : 0
             if on { $0.powerchill = 0 }
@@ -148,6 +154,7 @@ final class ACController {
     }
 
     func setPowerful(_ on: Bool) {
+        guard port?.powerchill != (on ? 1 : 0) else { return }
         send(ACCommand(powerful: on)) {
             $0.powerchill = on ? 1 : 0
             if on { $0.econo = 0 }
